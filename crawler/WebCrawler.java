@@ -1,7 +1,6 @@
 package crawler;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedReader;
@@ -16,34 +15,36 @@ public class WebCrawler extends JFrame {
 
     private JTextArea htmlTextArea;
     private JTextField urlTextField;
-    private JButton runButton;
 
     public WebCrawler() {
         super("Web Crawler");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(540, 700);
+        setVisible(true);
+        setLayout(null);
         JPanel contents = new JPanel();
         urlTextField = getUrlTextField();
-        htmlTextArea = getHtmlTextArea();
-        runButton = getRunButton();
         contents.add(urlTextField);
-        contents.add(runButton);
-        contents.add(new JScrollPane(htmlTextArea), BorderLayout.CENTER);
+        contents.add(getRunButton());
+        htmlTextArea = getHtmlTextArea();
+        contents.add(htmlTextArea);
         setContentPane(contents);
-        setSize(560, 700);
-        setVisible(true);
     }
 
     private JTextArea getHtmlTextArea() {
-        JTextArea textArea = new JTextArea("HTML code?", 38, 47);
+        JTextArea textArea = new JTextArea("HTML code?");
         textArea.setName("HtmlTextArea");
+        textArea.setSize(515, 660);
         textArea.setVisible(true);
         textArea.setEnabled(false);
         textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
         return textArea;
     }
 
     private JTextField getUrlTextField() {
-        JTextField textField = new JTextField(38);
+        JTextField textField = new JTextField();
+        textField.setSize(410, 20);
         textField.setName("UrlTextField");
         return textField;
     }
@@ -52,23 +53,26 @@ public class WebCrawler extends JFrame {
         JButton button = new JButton("Get text!");
         button.setSize( 100, 25);
         button.setName("RunButton");
-        button.addActionListener(e -> {
-            try {
-                final String url = urlTextField.getText();
-                final InputStream inputStream = new URL(url).openStream();
-                final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-                final StringBuilder stringBuilder = new StringBuilder();
-                final String LINE_SEPARATOR = System.getProperty("line.separator");
+        button.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e)  {
+                try {
+                    final String url = urlTextField.getText();
+                    final InputStream inputStream = new URL(url).openStream();
+                    final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                    final StringBuilder stringBuilder = new StringBuilder();
+                    final String LINE_SEPARATOR = System.getProperty("line.separator");
 
-                String nextLine;
-                while ((nextLine = reader.readLine()) != null) {
-                    stringBuilder.append(nextLine);
-                    stringBuilder.append(LINE_SEPARATOR);
+                    String nextLine;
+                    while ((nextLine = reader.readLine()) != null) {
+                        stringBuilder.append(nextLine);
+                        stringBuilder.append(LINE_SEPARATOR);
+                    }
+                    final String siteText = stringBuilder.toString();
+                    htmlTextArea.setText(siteText);
+                } catch (Exception exception) {
+                    htmlTextArea.setText(exception.getMessage());
                 }
-                final String siteText = stringBuilder.toString();
-                htmlTextArea.setText(siteText);
-            } catch (Exception exception) {
-                htmlTextArea.setText(exception.getMessage());
             }
         });
         return button;

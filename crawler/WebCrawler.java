@@ -91,5 +91,6 @@ public class WebCrawler extends JFrame {
 
     private void getLinks() {
         Pattern patternLink = Pattern.compile("");
+
     }
 }

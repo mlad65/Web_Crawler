@@ -7,12 +7,15 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class WebCrawler extends JFrame {
 
     private JTextArea htmlTextArea;
     private JTextField urlTextField;
     private JButton runButton;
+    private JLabel titleLabel;
 
     public WebCrawler() {
         super("Web Crawler");
@@ -21,12 +24,20 @@ public class WebCrawler extends JFrame {
         urlTextField = getUrlTextField();
         htmlTextArea = getHtmlTextArea();
         runButton = getRunButton();
+        titleLabel = getTitleLabel();
         contents.add(urlTextField);
         contents.add(runButton);
+        contents.add(titleLabel);
         contents.add(new JScrollPane(htmlTextArea), BorderLayout.CENTER);
         setContentPane(contents);
         setSize(560, 700);
         setVisible(true);
+    }
+
+    private JLabel getTitleLabel() {
+        JLabel titleLabel = new JLabel("Title: ");
+        titleLabel.setName("TitleLabel");
+        return titleLabel;
     }
 
     private JTextArea getHtmlTextArea() {
@@ -62,6 +73,10 @@ public class WebCrawler extends JFrame {
                     stringBuilder.append(LINE_SEPARATOR);
                 }
                 final String siteText = stringBuilder.toString();
+                Matcher matcher = Pattern.compile("(<title[\\w=\\-\"]*>)([\\w\\s\\-\"]*)(</title>)").matcher(siteText);
+                if (matcher.find()) {
+                    titleLabel.setText(matcher.group(2));
+                }
                 htmlTextArea.setText(siteText);
             } catch (Exception exception) {
                 htmlTextArea.setText(exception.getMessage());

@@ -60,28 +60,36 @@ public class WebCrawler extends JFrame {
         button.setSize( 100, 25);
         button.setName("RunButton");
         button.addActionListener(e -> {
-            try {
-                final String url = urlTextField.getText();
-                final InputStream inputStream = new URL(url).openStream();
-                final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-                final StringBuilder stringBuilder = new StringBuilder();
-                final String LINE_SEPARATOR = System.getProperty("line.separator");
-
-                String nextLine;
-                while ((nextLine = reader.readLine()) != null) {
-                    stringBuilder.append(nextLine);
-                    stringBuilder.append(LINE_SEPARATOR);
-                }
-                final String siteText = stringBuilder.toString();
-                Matcher matcher = Pattern.compile("(<title[\\w=\\-\"]*>)([\\w\\s\\-\"]*)(</title>)").matcher(siteText);
-                if (matcher.find()) {
-                    titleLabel.setText(matcher.group(2));
-                }
-                htmlTextArea.setText(siteText);
-            } catch (Exception exception) {
-                htmlTextArea.setText(exception.getMessage());
-            }
+            parseHtml();
         });
         return button;
+    }
+
+    private void parseHtml() {
+        try {
+            final String url = urlTextField.getText();
+            final InputStream inputStream = new URL(url).openStream();
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+            final StringBuilder stringBuilder = new StringBuilder();
+            final String LINE_SEPARATOR = System.getProperty("line.separator");
+
+            String nextLine;
+            while ((nextLine = reader.readLine()) != null) {
+                stringBuilder.append(nextLine);
+                stringBuilder.append(LINE_SEPARATOR);
+            }
+            final String siteText = stringBuilder.toString();
+            Matcher matcher = Pattern.compile("(<title[\\w=\\-\"]*>)([\\w\\s\\-\"]*)(</title>)").matcher(siteText);
+            if (matcher.find()) {
+                titleLabel.setText(matcher.group(2));
+            }
+            htmlTextArea.setText(siteText);
+        } catch (Exception exception) {
+            htmlTextArea.setText(exception.getMessage());
+        }
+    }
+
+    private void getLinks() {
+        Pattern patternLink = Pattern.compile("");
     }
 }

@@ -3,10 +3,7 @@ package crawler;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -21,36 +18,82 @@ public class WebCrawler extends JFrame {
     private JTextArea htmlTextArea;
     private JTextField urlTextField;
     private JButton runButton;
+    private JButton exportButton;
     private JLabel titleLabel;
     private JTable titlesTable;
+    private JTextField exportUrlTextField;
+    private Map<String, String> mapData = new TreeMap<>();
+    private Pattern patternTitle = Pattern.compile("(<title[\\w=\\-\"]*>)(.*?)(</title>)");
     final private String[] titlesTableHeader = new String[] {"URL", "Title"};
 
     public WebCrawler() {
         super("Web Crawler");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        JPanel contents = new JPanel();
-        JPanel panelTop = new JPanel();
-        JPanel panelLabel = new JPanel();
-        JPanel panelContents = new JPanel();
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
         urlTextField = getUrlTextField();
         htmlTextArea = getHtmlTextArea();
         runButton = getRunButton();
         titleLabel = getTitleLabel();
-        panelTop.add(urlTextField);
-        panelTop.add(runButton);
         titlesTable = getTitlesTable();
+        exportUrlTextField = getExportUrlTextField();
+        exportButton = getExportButton();
         titlesTable.setEnabled(false);
-        panelLabel.add(titleLabel);
         htmlTextArea.setVisible(false);
-        panelContents.add(htmlTextArea);
-        panelContents.add(new JScrollPane(titlesTable), BorderLayout.WEST);
-        contents.setLayout(new BoxLayout(contents, BoxLayout.Y_AXIS));
-        contents.add(panelTop);
-        contents.add(panelLabel);
-        contents.add(panelContents);
-        setContentPane(contents);
-        setSize(560, 700);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.FIRST_LINE_START;
+        gbc.insets = new Insets(3, 3, 3, 3);
+        gbc.weighty = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(new JLabel("URL: "), gbc);
+        gbc.gridx = 1;
+        panel.add(urlTextField, gbc);
+        gbc.gridx = 2;
+        panel.add(runButton, gbc);
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        panel.add(titleLabel, gbc);
+        gbc.gridy = 2;
+        gbc.gridwidth = 3;
+        panel.add(htmlTextArea, gbc);
+        panel.add(new JScrollPane(titlesTable), gbc);
+        gbc.gridwidth = 1;
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        panel.add(new JLabel("Export: "), gbc);
+        gbc.gridx = 1;
+        panel.add(exportUrlTextField, gbc);
+        gbc.gridx = 2;
+        panel.add(exportButton, gbc);
+        setContentPane(panel);
+        setSize(620, 620);
         setVisible(true);
+    }
+
+    private JButton getExportButton() {
+        JButton exportButton = new JButton("Export");
+        exportButton.setSize( 100, 25);
+        exportButton.setName("ExportButton");
+        exportButton.addActionListener(e -> exportToFile());
+        return exportButton;
+    }
+
+    private void exportToFile() {
+        try (PrintWriter writer = new PrintWriter(exportUrlTextField.getText())) {
+            for (Map.Entry<String, String> entry : mapData.entrySet()) {
+                writer.println(entry.getKey());
+                writer.println(entry.getValue());
+            }
+        } catch (IOException ioException) {
+            ioException.printStackTrace();
+        }
+    }
+
+    private JTextField getExportUrlTextField() {
+        JTextField exportUrlTextField = new JTextField(30);
+        exportUrlTextField.setName("ExportUrlTextField");
+        return exportUrlTextField;
     }
 
     private JLabel getTitleLabel() {
@@ -65,7 +108,6 @@ public class WebCrawler extends JFrame {
         model.addColumn("Title");
         JTable titlesTable = new JTable(model);
         titlesTable.setName("TitlesTable");
-        titlesTable.setSize(540, 600);
         return titlesTable;
     }
 
@@ -106,11 +148,14 @@ public class WebCrawler extends JFrame {
                 stringBuilder.append(LINE_SEPARATOR);
             }
             final String siteText = stringBuilder.toString();
-            Matcher matcher = Pattern.compile("(<title[\\w=\\-\"]*>)([\\w\\s\\-\"]*)(</title>)").matcher(siteText);
+            Matcher matcher = patternTitle.matcher(siteText);
             if (matcher.find()) {
                 titleLabel.setText(matcher.group(2));
+            } else {
+                titleLabel.setText("No title");
             }
             htmlTextArea.setText(siteText);
+            mapData.put(url, titleLabel.getText());
         } catch (Exception exception) {
             htmlTextArea.setText(exception.getMessage());
         }
@@ -118,19 +163,17 @@ public class WebCrawler extends JFrame {
 
     private void getLinks() {
         try {
+            mapData.clear();
             parseHtml();
             Pattern patternTag = Pattern.compile("(<a.*?href=[\"'])(.*?)([\"'].*?>)(.*?)(</a>)");
             Matcher matcherTag = patternTag.matcher(htmlTextArea.getText());
             Pattern patternBaseUrl = Pattern.compile("(https?://)([\\w.-]+)(.*?)(/?)([^/]*)");
             Pattern patternNormalUrl = Pattern.compile("https?://.*?");
-            Pattern patternRelativeUrl = Pattern.compile("(/?)([\\w.%/-]+)");
-            URL url;
-            URLConnection connection;
+            Pattern patternRelativeUrl = Pattern.compile("(/?)([\\w.%/-]*)");
             Matcher matcherUrl;
             String baseUrl;
             String currentUrl;
             String urlString;
-            Map<String, String> mapData = new TreeMap<>();
             Matcher matcherBaseUrl = patternBaseUrl.matcher(urlTextField.getText());
             if (matcherBaseUrl.matches()) {
                 baseUrl = matcherBaseUrl.group(1) + matcherBaseUrl.group(2);
@@ -139,16 +182,9 @@ public class WebCrawler extends JFrame {
                 baseUrl = "http://localhost";
                 currentUrl = "http://localhost/";
             }
-            mapData.put(urlTextField.getText(), titleLabel.getText());
             while (matcherTag.find()) {
                 if (patternNormalUrl.matcher(matcherTag.group(2)).matches()) {
-                    url = new URL(matcherTag.group(2));
-                    connection = url.openConnection();
-                    if (connection.getContentType() != null) {
-                        if (connection.getContentType().equals("text/html")) {
-                            mapData.put(matcherTag.group(2), findTitleInUrl(connection));
-                        }
-                    }
+                    addToMapData(matcherTag.group(2));
                 } else {
                     matcherUrl = patternRelativeUrl.matcher(matcherTag.group(2));
                     if (matcherUrl.matches()) {
@@ -157,11 +193,19 @@ public class WebCrawler extends JFrame {
                         } else {
                             urlString = currentUrl + matcherUrl.group(0);
                         }
-                        url = new URL(urlString);
-                        connection = url.openConnection();
-                        if (connection.getContentType() != null) {
-                            if (connection.getContentType().equals("text/html")) {
-                                mapData.put(urlString, findTitleInUrl(connection));
+                        if (!addToMapData(urlString)) {
+                            if (matcherUrl.group(1).length() == 1) {
+                                urlString = "http:/" + matcherUrl.group(0);
+                            } else {
+                                urlString = "http://" + matcherUrl.group(0);
+                            }
+                            if (!addToMapData(urlString)) {
+                                if (matcherUrl.group(1).length() == 1) {
+                                    urlString = "https:/" + matcherUrl.group(0);
+                                } else {
+                                    urlString = "https://" + matcherUrl.group(0);
+                                }
+                                addToMapData(urlString);
                             }
                         }
                     }
@@ -178,7 +222,25 @@ public class WebCrawler extends JFrame {
                 titlesTable.setEnabled(true);
             }
         } catch (Exception exception) {
+             htmlTextArea.setText(exception.getMessage());
+        }
+    }
+
+    private boolean addToMapData(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            URLConnection connection = url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:63.0) Gecko/20100101 Firefox/63.0");
+            if (connection.getContentType() != null) {
+                if (connection.getContentType().contains("text/html")) {
+                    mapData.put(urlString, findTitleInUrl(connection));
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException exception) {
             htmlTextArea.setText(exception.getMessage());
+            return false;
         }
     }
 
@@ -190,11 +252,11 @@ public class WebCrawler extends JFrame {
             stringBuilder.append(nextLine);
             stringBuilder.append(LINE_SEPARATOR);
         }
-        Pattern patternTitle = Pattern.compile("(<title[\\w=\\-\"]*>)(.*?)(</title>)");
         Matcher matcherTitle = patternTitle.matcher(stringBuilder);
         if (matcherTitle.find()) {
             return matcherTitle.group(2);
         }
         return "No title";
     }
+
 }

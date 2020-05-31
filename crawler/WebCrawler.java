@@ -14,7 +14,6 @@ import java.util.concurrent.*;
 
 public class WebCrawler extends JFrame {
 
-    private static final String LINE_SEPARATOR = System.getProperty("line.separator");
     private JTextArea htmlTextArea;
     private JTextField urlTextField;
     private JToggleButton runButton;
@@ -99,8 +98,6 @@ public class WebCrawler extends JFrame {
         return button;
     }
 
-
-
     private JTextField getDepthTextField() {
         JTextField depthTextField = new JTextField();
         depthTextField.setName("DepthTextField");
@@ -179,26 +176,7 @@ public class WebCrawler extends JFrame {
             int depthLevel = 0;
             urlQueue.offer(new String[] { urlTextField.getText(), urlTextField.getText(), String.valueOf(depthLevel) });
             Thread[] threads = new Thread[workerCount];
-/*
-            for (int i = 0; i < workerCount; i++) {
-                threads[i] = new Thread(() -> {
-                    String[] url = urlQueue.poll();
-                    if (Integer.parseInt(url[2]) <= depthLimit) {
-                        Webpage webpage = new Webpage(url[0], url[1], visitedLinks);
-                        if (webpage.open()) {
-                            mapData.put(webpage.getValidUrl(), webpage.getTitle());
-                            visitedLinks.add(webpage.getValidUrl());
-                            while (!webpage.urlQueue.isEmpty()) {
-                                String[] addToQueue = webpage.urlQueue.poll();
-                                urlQueue.offer(new String[]{addToQueue[0], addToQueue[1], String.valueOf(Integer.parseInt(url[2]) + 1)});
-                            }
-                        }
-                    }
-                });
-            }
 
-
- */
             int i = 0;
             boolean loadNewJob;
             while (!urlQueue.isEmpty()) {
@@ -212,15 +190,13 @@ public class WebCrawler extends JFrame {
                         Webpage webpage = new Webpage(url[0], url[1], visitedLinks);
 
                         threads[i] = new Thread(() -> {
-                            String[] threadUrl = url;
-                            Webpage threadWp = webpage;
-                            if (Integer.parseInt(threadUrl[2]) <= depthLimit) {
-                                if (threadWp.open()) {
-                                    mapData.put(threadWp.getValidUrl(), threadWp.getTitle());
-                                    visitedLinks.add(threadWp.getValidUrl());
-                                    while (!threadWp.urlQueue.isEmpty()) {
-                                        String[] addToQueue = threadWp.urlQueue.poll();
-                                        urlQueue.offer(new String[]{addToQueue[0], addToQueue[1], String.valueOf(Integer.parseInt(threadUrl[2]) + 1)});
+                            if (Integer.parseInt(url[2]) <= depthLimit) {
+                                if (webpage.open()) {
+                                    mapData.put(webpage.getValidUrl(), webpage.getTitle());
+                                    visitedLinks.add(webpage.getValidUrl());
+                                    while (!webpage.urlQueue.isEmpty()) {
+                                        String[] addToQueue = webpage.urlQueue.poll();
+                                        urlQueue.offer(new String[]{addToQueue[0], addToQueue[1], String.valueOf(Integer.parseInt(url[2]) + 1)});
                                     }
                                 }
                             }
@@ -249,7 +225,6 @@ public class WebCrawler extends JFrame {
 
 class Webpage {
 
-    private static final String LINE_SEPARATOR = System.getProperty("line.separator");
     private final Pattern patternTitle = Pattern.compile("(<title[\\w=\\-\"]*>)(.*?)(</title>)");
     private final Pattern patternTag = Pattern.compile("(<a[\\w\\s\"']*?href=[\"'])(.*?)([\"'].*?>)(.*?)(</a>)");
     private final Pattern patternBaseUrl = Pattern.compile("(https?://)([\\w.:-]+)(.*?)(/?)(.*?)(/?)([^/]*)");

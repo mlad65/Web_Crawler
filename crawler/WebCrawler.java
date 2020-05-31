@@ -7,9 +7,7 @@ import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.*;
@@ -177,29 +175,57 @@ public class WebCrawler extends JFrame {
             urlQueue.clear();
             visitedLinks.clear();
             workerCount = 10;
-            CrawlerThread[] threads = new CrawlerThread[workerCount];
             depthLimit = Integer.parseInt(depthTextField.getText());
             int depthLevel = 0;
-            String[] url;
+            urlQueue.offer(new String[] { urlTextField.getText(), urlTextField.getText(), String.valueOf(depthLevel) });
+            Thread[] threads = new Thread[workerCount];
+/*
+            for (int i = 0; i < workerCount; i++) {
+                threads[i] = new Thread(() -> {
+                    String[] url = urlQueue.poll();
+                    if (Integer.parseInt(url[2]) <= depthLimit) {
+                        Webpage webpage = new Webpage(url[0], url[1], visitedLinks);
+                        if (webpage.open()) {
+                            mapData.put(webpage.getValidUrl(), webpage.getTitle());
+                            visitedLinks.add(webpage.getValidUrl());
+                            while (!webpage.urlQueue.isEmpty()) {
+                                String[] addToQueue = webpage.urlQueue.poll();
+                                urlQueue.offer(new String[]{addToQueue[0], addToQueue[1], String.valueOf(Integer.parseInt(url[2]) + 1)});
+                            }
+                        }
+                    }
+                });
+            }
+
+
+ */
             int i = 0;
-            threads[0] = new CrawlerThread(urlTextField.getText(), urlTextField.getText(), depthLevel, mapData, visitedLinks, urlQueue);
-            threads[0].start();
-            threads[0].join();
+            boolean loadNewJob;
             while (!urlQueue.isEmpty()) {
                 while (!urlQueue.isEmpty()) {
-                    if (threads[i] == null) {
-                        url = urlQueue.poll();
-                        if (Integer.valueOf(url[2]) < depthLimit) {
-                            threads[i] = new CrawlerThread(url[0], url[1], Integer.valueOf(url[2]) + 1, mapData, visitedLinks, urlQueue);
-                            threads[i].start();
-                        }
-                    } else if (!threads[i].isAlive()) {
-                        threads[i].join();
-                        url = urlQueue.poll();
-                        if (Integer.valueOf(url[2]) < depthLimit) {
-                            threads[i] = new CrawlerThread(url[0], url[1], Integer.valueOf(url[2]) + 1, mapData, visitedLinks, urlQueue);
-                            threads[i].start();
-                        }
+                    if (threads[i] != null) {
+                        if (!threads[i].isAlive()) loadNewJob = true;
+                        else loadNewJob = false;
+                    } else loadNewJob = true;
+                    if (loadNewJob) {
+                        String[] url = urlQueue.poll();
+                        Webpage webpage = new Webpage(url[0], url[1], visitedLinks);
+
+                        threads[i] = new Thread(() -> {
+                            String[] threadUrl = url;
+                            Webpage threadWp = webpage;
+                            if (Integer.parseInt(threadUrl[2]) <= depthLimit) {
+                                if (threadWp.open()) {
+                                    mapData.put(threadWp.getValidUrl(), threadWp.getTitle());
+                                    visitedLinks.add(threadWp.getValidUrl());
+                                    while (!threadWp.urlQueue.isEmpty()) {
+                                        String[] addToQueue = threadWp.urlQueue.poll();
+                                        urlQueue.offer(new String[]{addToQueue[0], addToQueue[1], String.valueOf(Integer.parseInt(threadUrl[2]) + 1)});
+                                    }
+                                }
+                            }
+                        });
+                        threads[i].start();
                     }
                     parsedLabel.setText(String.valueOf(mapData.size()));
                     i = (i + 1) % workerCount;
@@ -210,9 +236,10 @@ public class WebCrawler extends JFrame {
                 parsedLabel.setText(String.valueOf(mapData.size()));
             }
             parsedLabel.setText(String.valueOf(mapData.size()));
+            runButton.setSelected(false);
         } catch (Exception e) {
             try (PrintWriter writer = new PrintWriter("C:\\Apps\\errorlog.txt")) {
-                writer.print(e.toString());
+                writer.print(e.getStackTrace().toString());
             } catch (FileNotFoundException fileNotFoundException) {
                 fileNotFoundException.printStackTrace();
             }
@@ -220,73 +247,81 @@ public class WebCrawler extends JFrame {
     }
 }
 
-class CrawlerThread extends Thread {
+class Webpage {
 
     private static final String LINE_SEPARATOR = System.getProperty("line.separator");
     private final Pattern patternTitle = Pattern.compile("(<title[\\w=\\-\"]*>)(.*?)(</title>)");
     private final Pattern patternTag = Pattern.compile("(<a[\\w\\s\"']*?href=[\"'])(.*?)([\"'].*?>)(.*?)(</a>)");
-    private final Pattern patternBaseUrl = Pattern.compile("(https?://)([\\w.:-]+)(.*?)(/?)([^/]*)");
+    private final Pattern patternBaseUrl = Pattern.compile("(https?://)([\\w.:-]+)(.*?)(/?)(.*?)(/?)([^/]*)");
     private final Pattern patternNormalUrl = Pattern.compile("https?://.*?");
     private final Pattern patternRelativeUrl = Pattern.compile("(/?)(.*)");
-    private Map<String, String> mapData;
     private Set<String> visitedLinks;
     private String url;
-    private ConcurrentLinkedQueue<String[]> urlQueue;
+    public ArrayDeque<String[]> urlQueue = new ArrayDeque<>();
     private String baseUrl;
     private String currentUrl;
-    private int depthLevel;
+    private String html;
+    private String validUrl;
+    private String title;
 
-    public CrawlerThread(String url, String homeUrl, int depthLevel, Map<String, String> mapData, Set<String> visitedLinks, ConcurrentLinkedQueue<String[]> urlQueue) {
+    public Webpage(String url, String homeUrl, Set<String> visitedLinks) {
         this.url = url;
-        this.mapData = mapData;
-        this.urlQueue = urlQueue;
-        this.depthLevel = depthLevel;
         this.visitedLinks = visitedLinks;
         Matcher matcherBaseUrl = patternBaseUrl.matcher(homeUrl);
         if (matcherBaseUrl.matches()) {
             baseUrl = matcherBaseUrl.group(1) + matcherBaseUrl.group(2);
             currentUrl = matcherBaseUrl.group(1) + matcherBaseUrl.group(2) + matcherBaseUrl.group(3) + matcherBaseUrl.group(4);
-        } else if (homeUrl.substring(homeUrl.length() - 1).equals(LINE_SEPARATOR)) {
+        } else if (homeUrl.substring(homeUrl.length() - 1).equals("/")) {
             baseUrl = homeUrl.substring(0, homeUrl.length() - 1);
             currentUrl = homeUrl;
         } else {
             baseUrl = homeUrl;
-            currentUrl = homeUrl + LINE_SEPARATOR;
+            currentUrl = homeUrl + "/";
         }
     }
 
-    @Override
-    public void run() {
+    public String getValidUrl() {
+        return validUrl;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public boolean open() {
         if (patternNormalUrl.matcher(url).matches()) {
-            checkWebpage(url);
+            return (parsePage(url));
         } else {
             Matcher matcherUrl = patternRelativeUrl.matcher(url);
             if (matcherUrl.matches()) {
-                if (matcherUrl.group(0).substring(0, 1).equals(LINE_SEPARATOR)) {
+                if (matcherUrl.group(0).substring(0, 1).equals("/")) {
                     url = baseUrl + matcherUrl.group(0);
                 } else {
                     url = currentUrl + matcherUrl.group(0);
                 }
-                if (!checkWebpage(url)) {
-                    if (matcherUrl.group(0).substring(0, 1).equals(LINE_SEPARATOR)) {
+                if (parsePage(url)) return true;
+                else {
+                    if (matcherUrl.group(0).substring(0, 1).equals("/")) {
                         url = "http:/" + matcherUrl.group(0);
                     } else {
                         url = "http://" + matcherUrl.group(0);
                     }
-                    if (!checkWebpage(url)) {
+                    if (parsePage(url)) return true;
+                    else {
                         if (matcherUrl.group(1).length() == 1) {
                             url = "https:/" + matcherUrl.group(0);
                         } else {
                             url = "https://" + matcherUrl.group(0);
                         }
-                        checkWebpage(url);
+                        return parsePage(url);
                     }
                 }
             }
         }
+        return false;
     }
 
-    private String getHtml(String url) {
+    private boolean parseHtml(String url) {
         final InputStream inputStream;
         try {
             inputStream = new URL(url).openStream();
@@ -298,7 +333,8 @@ class CrawlerThread extends Thread {
                 stringBuilder.append(nextLine);
                 stringBuilder.append(LINE_SEPARATOR);
             }
-            return stringBuilder.toString();
+            html = stringBuilder.toString();
+            return true;
         } catch (Exception e) {
             try (PrintWriter writer = new PrintWriter("C:\\Apps\\errorlog.txt")) {
                 writer.print(e.toString());
@@ -306,36 +342,32 @@ class CrawlerThread extends Thread {
                 fileNotFoundException.printStackTrace();
             }
         }
-        return "";
+        return false;
     }
 
-    private boolean checkWebpage(String url) {
+    private boolean parsePage(String url) {
         try {
             if (visitedLinks.contains(url)) return false;
-            String title;
             URL urlObject = new URL(url);
             URLConnection connection = urlObject.openConnection();
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:63.0) Gecko/20100101 Firefox/63.0");
             if (connection.getContentType() != null) {
                 if
                 (connection.getContentType().contains("text/html")) {
-                    String html = getHtml(url);
-                    Matcher matcherTitle = patternTitle.matcher(html);
-                    if (matcherTitle.find()) {
-                        title = matcherTitle.group(2);
-                    } else {
-                        title = "No title";
+                    if (parseHtml(url)) {
+                        Matcher matcherTitle = patternTitle.matcher(html);
+                        if (matcherTitle.find()) {
+                            title = matcherTitle.group(2);
+                        } else {
+                            title = "No title";
+                        }
+                        validUrl = url;
+                        Matcher matcherTag = patternTag.matcher(html);
+                        while (matcherTag.find()) {
+                            urlQueue.offer(new String[]{matcherTag.group(2), url});
+                        }
+                        return true;
                     }
-                    synchronized (CrawlerThread.class) {
-                        mapData.put(url, title);
-                        visitedLinks.add(url);
-                    }
-
-                    Matcher matcherTag = patternTag.matcher(html);
-                    while (matcherTag.find()) {
-                        urlQueue.offer(new String[]{matcherTag.group(2), url, String.valueOf(depthLevel)});
-                    }
-                    return true;
                 }
             }
         } catch (Exception e) {
